@@ -130,4 +130,189 @@ firebase-react-template/
   VITE_FIREBASE_API_KEY=...
   VITE_FIREBASE_AUTH_DOMAIN=...
   VITE_FIREBASE_PROJECT_ID=...
+  VITE_FIREBASE_STORAGE_BUCKET=...
+  VITE_FIREBASE_MESSAGING_SENDER_ID=...
+  VITE_FIREBASE_APP_ID=...
   ```
+
+## Firebase Integration
+
+### Configuration Files
+- `firebase.json` - Firebase Hosting and services configuration
+- `firestore.rules` - Firestore security rules (deployed with `firebase deploy --only firestore`)
+- `firestore.indexes.json` - Firestore indexes configuration
+- `storage.rules` - Storage security rules (deployed with `firebase deploy --only storage`)
+- `.firebaserc` - Firebase project ID configuration
+- `src/firebase/config.js` - Firebase SDK initialization
+
+### Firebase Services Available
+- **Authentication** - Email/Password, Google Sign-in, Password Reset
+- **Firestore Database** - NoSQL cloud database with real-time updates
+- **Storage** - File uploads and downloads
+- **Hosting** - Static file hosting with CDN
+
+### Security Rules Pattern
+```javascript
+// Firestore example
+match /users/{userId} {
+  allow read: if request.auth != null;
+  allow write: if request.auth.uid == userId;
+}
+
+// Storage example
+match /users/{userId}/{allPaths=**} {
+  allow read, write: if request.auth.uid == userId;
+}
+```
+
+## Deployment
+
+### Manual Deployment
+```bash
+npm run build              # Build for production
+firebase deploy           # Deploy everything
+firebase deploy --only hosting   # Deploy hosting only
+```
+
+### CI/CD with GitHub Actions
+- See [GitHub Actions Wiki](https://github.com/ThanuMahee12/firebase-react-template/wiki/GitHub-Actions)
+- Configure secrets in repository settings
+- Automatic deployment on push to main branch
+
+## Documentation
+
+### Wiki Resources
+Complete documentation available at: https://github.com/ThanuMahee12/firebase-react-template/wiki
+
+Essential pages:
+- **Setup Guide** - Complete installation and configuration
+- **Firebase Configuration** - Set up Firebase services
+- **API Reference** - Complete API documentation
+- **Deployment Guide** - Deploy to Firebase Hosting
+- **GitHub Actions** - Automated CI/CD setup
+- **Email Templates** - Customize Firebase auth emails
+- **Firebase Limitations** - Free tier quotas and optimization
+
+### Development Workflow
+1. Read [Setup Guide](https://github.com/ThanuMahee12/firebase-react-template/wiki/Setup-Guide)
+2. Configure Firebase credentials in `.env`
+3. Update `.firebaserc` with your project ID
+4. Start development: `npm run dev`
+5. Deploy when ready: `firebase deploy`
+
+## Common Tasks
+
+### Adding a New Page
+1. Create component in `src/pages/` (e.g., `About.jsx`)
+2. Add route in `src/routes/index.jsx`
+3. Optionally wrap with layout component
+
+### Adding Redux State
+1. Create slice in `src/slices/` (e.g., `userSlice.js`)
+2. Add reducer to `src/store/store.js`
+3. Use in components with `useSelector` and `useDispatch`
+
+### Adding Firebase Service
+1. Create service file in `src/firebase/` (e.g., `auth.js`)
+2. Import Firebase modules
+3. Export service functions
+4. Use in components or Redux thunks
+
+### Working with Firestore
+```javascript
+import { collection, addDoc, getDocs } from 'firebase/firestore'
+import { db } from './firebase/config'
+
+// Add document
+await addDoc(collection(db, 'items'), { name: 'Item' })
+
+// Get documents
+const snapshot = await getDocs(collection(db, 'items'))
+```
+
+### Working with Authentication
+```javascript
+import { signInWithEmailAndPassword } from 'firebase/auth'
+import { auth } from './firebase/config'
+
+// Sign in
+await signInWithEmailAndPassword(auth, email, password)
+```
+
+## Best Practices
+
+### Code Organization
+- One component per file
+- Keep components small (< 200 lines)
+- Use custom hooks for reusable logic
+- Organize imports: React → Third-party → Local
+
+### State Management
+- Use Redux for global state (user, theme, etc.)
+- Use local state for component-specific data
+- Use React Context sparingly
+
+### Firebase Best Practices
+- Always use environment variables
+- Implement proper security rules
+- Handle errors gracefully
+- Use Firestore queries efficiently
+- Monitor usage in Firebase Console
+
+### Performance
+- Use React.memo for expensive components
+- Implement code splitting with React.lazy
+- Optimize images before uploading to Storage
+- Use Firestore pagination for large datasets
+
+## Troubleshooting
+
+### Common Issues
+
+**Build fails with "env variable not found"**
+- Ensure all `VITE_FIREBASE_*` variables are in `.env`
+- Restart dev server after changing `.env`
+
+**Firebase permission denied**
+- Check `firestore.rules` and `storage.rules`
+- Verify user is authenticated
+- Deploy rules: `firebase deploy --only firestore,storage`
+
+**Deployment fails**
+- Run `firebase login` to re-authenticate
+- Verify `.firebaserc` has correct project ID
+- Ensure `npm run build` succeeds locally
+
+## Resources
+
+- [Repository README](README.md) - Quick start guide
+- [Wiki Documentation](https://github.com/ThanuMahee12/firebase-react-template/wiki) - Complete docs
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute
+- [Firebase Docs](https://firebase.google.com/docs) - Official Firebase documentation
+- [React Docs](https://react.dev) - Official React documentation
+- [Redux Toolkit Docs](https://redux-toolkit.js.org) - Redux state management
+- [Vite Docs](https://vitejs.dev) - Build tool documentation
+
+## Template Maintenance
+
+### Updating Dependencies
+```bash
+npm update           # Update to latest minor/patch versions
+npm outdated         # Check for newer versions
+```
+
+### Firebase CLI
+```bash
+firebase --version   # Check Firebase CLI version
+npm install -g firebase-tools  # Update Firebase CLI
+```
+
+## Support
+
+- 🐛 [Report Issues](https://github.com/ThanuMahee12/firebase-react-template/issues)
+- 💬 [Discussions](https://github.com/ThanuMahee12/firebase-react-template/discussions)
+- 📖 [Wiki](https://github.com/ThanuMahee12/firebase-react-template/wiki)
+
+---
+
+**This template is production-ready and actively maintained. Happy coding! 🚀**
