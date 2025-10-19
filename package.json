@@ -1,7 +1,23 @@
 {
   "name": "firebase-react-template",
-  "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Production-ready React + Vite template with Firebase integration, Redux state management, and automated deployment",
+  "author": "ThanuMahee12",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ThanuMahee12/firebase-react-template.git"
+  },
+  "keywords": [
+    "react",
+    "vite",
+    "firebase",
+    "redux",
+    "template",
+    "starter",
+    "boilerplate"
+  ],
+  "private": false,
   "type": "module",
   "scripts": {
     "dev": "vite",
