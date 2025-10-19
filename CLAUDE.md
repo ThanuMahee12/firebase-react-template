@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a React + Vite template project intended as a starting point for Firebase-integrated React applications. Currently, it contains a minimal Vite + React setup with HMR (Hot Module Replacement) and ESLint configuration.
-
-**Important**: Despite the name "firebase-react-template", Firebase integration is NOT yet implemented. This is a vanilla React + Vite template awaiting Firebase setup.
+A production-ready React + Vite template for building Firebase-integrated applications. This template includes essential packages and structure for full-stack Firebase development with modern React patterns.
 
 ## Technology Stack
 
@@ -14,6 +12,10 @@ This is a React + Vite template project intended as a starting point for Firebas
 - **Framework**: React 19.1.1
 - **Language**: JavaScript (JSX)
 - **Linting**: ESLint 9 with React Hooks and React Refresh plugins
+- **State Management**: Redux Toolkit (@reduxjs/toolkit 2.9.1) + React-Redux 9.2.0
+- **Routing**: React Router DOM 7.9.4
+- **Backend**: Firebase 12.4.0 (Auth, Firestore, Storage, etc.)
+- **Icons**: React Icons 5.5.0
 
 ## Development Commands
 
@@ -44,15 +46,22 @@ yarn lint
 ```
 firebase-react-template/
 ├── src/
-│   ├── main.jsx           # Application entry point
-│   ├── App.jsx            # Root component
-│   ├── index.css          # Global styles
-│   ├── App.css            # App component styles
-│   └── assets/            # Static assets (images, etc.)
-├── public/                # Public static files served at root
-├── index.html             # HTML entry point
-├── vite.config.js         # Vite configuration
-└── eslint.config.js       # ESLint configuration
+│   ├── main.jsx              # Application entry point
+│   ├── App.jsx               # Root component
+│   ├── styles/               # CSS styles
+│   │   ├── index.css         # Global styles
+│   │   └── App.css           # App component styles
+│   ├── components/           # Reusable React components (to be created)
+│   ├── pages/                # Page components for routing (to be created)
+│   ├── features/             # Redux slices and feature logic (to be created)
+│   ├── firebase/             # Firebase config and services (to be created)
+│   ├── hooks/                # Custom React hooks (to be created)
+│   ├── utils/                # Helper functions (to be created)
+│   └── assets/               # Static assets (images, icons, etc.)
+├── public/                   # Public static files served at root
+├── index.html                # HTML entry point
+├── vite.config.js            # Vite configuration
+└── eslint.config.js          # ESLint configuration
 ```
 
 ## Architecture Notes
@@ -73,10 +82,40 @@ firebase-react-template/
 - Custom rule: `no-unused-vars` ignores uppercase/underscore prefixed variables
 - Ignores `dist` directory
 
-## Future Firebase Integration
+## Recommended Project Organization
 
-When adding Firebase to this template:
-- Firebase SDK should be initialized in a dedicated config file (e.g., `src/firebase/config.js`)
-- Consider using environment variables for Firebase config (create `.env` file, add to `.gitignore`)
-- Authentication state management should likely be done via React Context
-- Firestore/Database queries should be abstracted into service/hook files
+### Firebase Setup
+- Create `src/firebase/config.js` for Firebase initialization
+- Use environment variables for Firebase credentials (`.env` file with `VITE_` prefix)
+- Create service files in `src/firebase/` for different Firebase features:
+  - `auth.js` - Authentication methods
+  - `firestore.js` - Firestore database operations
+  - `storage.js` - Firebase Storage operations
+
+### Redux State Management
+- Store configuration in `src/store/store.js`
+- Feature slices in `src/features/` directory (e.g., `authSlice.js`, `userSlice.js`)
+- Use Redux Toolkit's `createSlice` and `createAsyncThunk` for async Firebase operations
+- Combine Redux with Firebase for centralized state management
+
+### Routing Structure
+- Define routes in `App.jsx` using React Router
+- Page components in `src/pages/` (e.g., `Home.jsx`, `Login.jsx`, `Dashboard.jsx`)
+- Protected routes for authenticated pages
+- Use `useNavigate` and `useParams` hooks from react-router-dom
+
+### Component Guidelines
+- Shared/reusable components in `src/components/`
+- Page-specific components can live in `src/pages/[pageName]/components/`
+- Use React Icons for consistent iconography
+- Keep components small and focused
+
+### Environment Variables
+- Vite requires `VITE_` prefix for environment variables
+- Create `.env` file (add to `.gitignore`)
+- Example Firebase env variables:
+  ```
+  VITE_FIREBASE_API_KEY=...
+  VITE_FIREBASE_AUTH_DOMAIN=...
+  VITE_FIREBASE_PROJECT_ID=...
+  ```
