@@ -51,17 +51,22 @@ firebase-react-template/
 │   ├── styles/               # CSS styles
 │   │   ├── index.css         # Global styles
 │   │   └── App.css           # App component styles
-│   ├── components/           # Reusable React components (to be created)
-│   ├── pages/                # Page components for routing (to be created)
-│   ├── features/             # Redux slices and feature logic (to be created)
-│   ├── firebase/             # Firebase config and services (to be created)
-│   ├── hooks/                # Custom React hooks (to be created)
-│   ├── utils/                # Helper functions (to be created)
-│   └── assets/               # Static assets (images, icons, etc.)
+│   ├── components/           # Reusable React components
+│   ├── pages/                # Page components for routing
+│   ├── layouts/              # Layout wrapper components
+│   ├── routes/               # Route configuration and protected routes
+│   ├── slices/               # Redux Toolkit slices
+│   ├── features/             # Redux features (alternative to slices)
+│   ├── store/                # Redux store configuration
+│   ├── firebase/             # Firebase config and services
+│   ├── hooks/                # Custom React hooks
+│   ├── utils/                # Helper functions and utilities
+│   └── assets/               # Static assets (images, icons, fonts)
 ├── public/                   # Public static files served at root
 ├── index.html                # HTML entry point
 ├── vite.config.js            # Vite configuration
-└── eslint.config.js          # ESLint configuration
+├── eslint.config.js          # ESLint configuration
+└── CLAUDE.md                 # AI assistant guidance
 ```
 
 ## Architecture Notes
@@ -94,18 +99,25 @@ firebase-react-template/
 
 ### Redux State Management
 - Store configuration in `src/store/store.js`
-- Feature slices in `src/features/` directory (e.g., `authSlice.js`, `userSlice.js`)
+- Redux slices in `src/slices/` directory (e.g., `authSlice.js`, `userSlice.js`, `themeSlice.js`)
+- Alternative: Use `src/features/` for feature-based organization
 - Use Redux Toolkit's `createSlice` and `createAsyncThunk` for async Firebase operations
 - Combine Redux with Firebase for centralized state management
 
 ### Routing Structure
-- Define routes in `App.jsx` using React Router
+- Route configuration in `src/routes/index.jsx`
+- Protected/Public route wrappers in `src/routes/` (e.g., `ProtectedRoute.jsx`)
 - Page components in `src/pages/` (e.g., `Home.jsx`, `Login.jsx`, `Dashboard.jsx`)
-- Protected routes for authenticated pages
-- Use `useNavigate` and `useParams` hooks from react-router-dom
+- Use `createBrowserRouter` from react-router-dom for route configuration
+- Use `useNavigate` and `useParams` hooks for navigation
+
+### Layout Structure
+- Layout components in `src/layouts/` (e.g., `MainLayout.jsx`, `AuthLayout.jsx`, `DashboardLayout.jsx`)
+- Wrap page components with appropriate layouts
+- Include common elements like headers, footers, sidebars in layouts
 
 ### Component Guidelines
-- Shared/reusable components in `src/components/`
+- Shared/reusable components in `src/components/` (e.g., `Button.jsx`, `Modal.jsx`, `Navbar.jsx`)
 - Page-specific components can live in `src/pages/[pageName]/components/`
 - Use React Icons for consistent iconography
 - Keep components small and focused
