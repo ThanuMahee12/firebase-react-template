@@ -1,0 +1,158 @@
+name: Auto Release and Tag
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for proper tag detection
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Determine version bump type
+        id: bump_type
+        run: |
+          # Check commit message for version bump indicators
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+
+          if echo "$COMMIT_MSG" | grep -qiE "^(breaking|major):"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMIT_MSG" | grep -qiE "^(feat|feature|minor):"; then
+            BUMP_TYPE="minor"
+          else
+            BUMP_TYPE="patch"
+          fi
+
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Version bump type: $BUMP_TYPE"
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          chmod +x .github/scripts/bump-version.sh
+          NEW_VERSION=$(.github/scripts/bump-version.sh ${{ steps.bump_type.outputs.bump_type }})
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version will be: $NEW_VERSION"
+
+      - name: Update package.json version
+        run: |
+          VERSION_NUMBER=${{ steps.new_version.outputs.version }}
+          VERSION_NUMBER=${VERSION_NUMBER#v}  # Remove 'v' prefix
+          npm version $VERSION_NUMBER --no-git-tag-version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.new_version.outputs.version }}" || echo "No changes to commit"
+
+      - name: Create Git tag
+        run: |
+          git tag -a ${{ steps.new_version.outputs.version }} -m "Release ${{ steps.new_version.outputs.version }}"
+          git push origin ${{ steps.new_version.outputs.version }}
+
+      - name: Create release archive
+        run: |
+          mkdir -p release-assets
+
+          # Create source code archive (excluding development files)
+          tar -czf release-assets/firebase-react-template-${{ steps.new_version.outputs.version }}-source.tar.gz \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=dist \
+            --exclude=.github \
+            --exclude=release-assets \
+            .
+
+          # Create production build archive
+          cd dist
+          tar -czf ../release-assets/firebase-react-template-${{ steps.new_version.outputs.version }}-build.tar.gz .
+          cd ..
+
+          # Create checksums
+          cd release-assets
+          sha256sum *.tar.gz > checksums.txt
+          cd ..
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          PREVIOUS_TAG=${{ steps.get_tag.outputs.latest_tag }}
+          NEW_TAG=${{ steps.new_version.outputs.version }}
+
+          echo "## What's Changed" > release_notes.md
+          echo "" >> release_notes.md
+
+          # Get commits since last tag
+          git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" >> release_notes.md
+
+          echo "" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## Installation" >> release_notes.md
+          echo "" >> release_notes.md
+          echo '```bash' >> release_notes.md
+          echo "# Clone the repository" >> release_notes.md
+          echo "git clone https://github.com/${{ github.repository }}.git" >> release_notes.md
+          echo "cd firebase-react-template" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Checkout this version" >> release_notes.md
+          echo "git checkout $NEW_TAG" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Install dependencies" >> release_notes.md
+          echo "npm install" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Start development" >> release_notes.md
+          echo "npm run dev" >> release_notes.md
+          echo '```' >> release_notes.md
+
+          echo "" >> release_notes.md
+          echo "## Downloads" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "- **Source Code**: Complete template with all source files" >> release_notes.md
+          echo "- **Production Build**: Pre-built distribution files ready for deployment" >> release_notes.md
+          echo "- **Checksums**: SHA256 checksums for verification" >> release_notes.md
+
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.new_version.outputs.version }}
+          name: Release ${{ steps.new_version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            release-assets/*.tar.gz
+            release-assets/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push version bump commit
+        run: |
+          git push origin main || echo "No commits to push"
