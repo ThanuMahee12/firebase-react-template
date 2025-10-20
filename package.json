@@ -1,6 +1,6 @@
 {
   "name": "firebase-react-template",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Production-ready React + Vite template with Firebase integration, Redux state management, and automated deployment",
   "author": "ThanuMahee12",
   "license": "MIT",
