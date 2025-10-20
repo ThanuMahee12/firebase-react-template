@@ -1,0 +1,275 @@
+name: CI/CD Pipeline - Format, Lint, Tag, Release, Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  format-and-lint:
+    name: Format and Lint Checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check code formatting
+        run: npm run format:check
+
+      - name: Run linter
+        run: npm run lint
+
+  create-version-and-tag:
+    name: Create Version Tag
+    needs: format-and-lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_version: ${{ steps.new_version.outputs.version }}
+      bump_type: ${{ steps.bump_type.outputs.bump_type }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "Latest tag: $LATEST_TAG"
+
+      - name: Determine version bump type
+        id: bump_type
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+
+          if echo "$COMMIT_MSG" | grep -qiE "^(breaking|major):"; then
+            BUMP_TYPE="major"
+          elif echo "$COMMIT_MSG" | grep -qiE "^(feat|feature|minor):"; then
+            BUMP_TYPE="minor"
+          else
+            BUMP_TYPE="patch"
+          fi
+
+          echo "bump_type=$BUMP_TYPE" >> $GITHUB_OUTPUT
+          echo "Version bump type: $BUMP_TYPE"
+
+      - name: Calculate new version
+        id: new_version
+        run: |
+          chmod +x .github/scripts/bump-version.sh
+          NEW_VERSION=$(.github/scripts/bump-version.sh ${{ steps.bump_type.outputs.bump_type }})
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_VERSION"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Update package.json version
+        run: |
+          VERSION_NUMBER=${{ steps.new_version.outputs.version }}
+          VERSION_NUMBER=${VERSION_NUMBER#v}
+          npm version $VERSION_NUMBER --no-git-tag-version
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to ${{ steps.new_version.outputs.version }}" || echo "No changes to commit"
+
+      - name: Create and push Git tag
+        run: |
+          git tag -a ${{ steps.new_version.outputs.version }} -m "Release ${{ steps.new_version.outputs.version }}"
+          git push origin ${{ steps.new_version.outputs.version }}
+          git push origin main || echo "No version bump commit to push"
+
+  build-and-deploy:
+    name: Build and Deploy to Firebase
+    needs: create-version-and-tag
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-version-and-tag.outputs.new_version }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          channelId: live
+          projectId: ${{ secrets.FIREBASE_PROJECT_ID }}
+          target: production
+        env:
+          FIREBASE_CLI_PREVIEWS: hostingchannels
+
+      - name: Add deployment comment
+        run: |
+          echo "🚀 Deployed version ${{ needs.create-version-and-tag.outputs.new_version }} to Firebase Hosting"
+          echo "📦 Bump type: ${{ needs.create-version-and-tag.outputs.bump_type }}"
+
+  create-github-release:
+    name: Create GitHub Release
+    needs: [create-version-and-tag, build-and-deploy]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-version-and-tag.outputs.new_version }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project for release
+        run: npm run build
+
+      - name: Create release archives
+        run: |
+          mkdir -p release-assets
+
+          # Create source code archive (excluding development files)
+          tar -czf release-assets/firebase-react-template-${{ needs.create-version-and-tag.outputs.new_version }}-source.tar.gz \
+            --exclude=node_modules \
+            --exclude=.git \
+            --exclude=dist \
+            --exclude=.github \
+            --exclude=release-assets \
+            .
+
+          # Create production build archive
+          cd dist
+          tar -czf ../release-assets/firebase-react-template-${{ needs.create-version-and-tag.outputs.new_version }}-build.tar.gz .
+          cd ..
+
+          # Create checksums
+          cd release-assets
+          sha256sum *.tar.gz > checksums.txt
+          cd ..
+
+      - name: Get previous tag for release notes
+        id: prev_tag
+        run: |
+          CURRENT_TAG=${{ needs.create-version-and-tag.outputs.new_version }}
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 $CURRENT_TAG^ 2>/dev/null || echo "")
+          echo "previous_tag=$PREVIOUS_TAG" >> $GITHUB_OUTPUT
+          echo "Previous tag: $PREVIOUS_TAG"
+
+      - name: Generate release notes
+        run: |
+          PREVIOUS_TAG=${{ steps.prev_tag.outputs.previous_tag }}
+          NEW_TAG=${{ needs.create-version-and-tag.outputs.new_version }}
+
+          echo "## 🚀 What's New" > release_notes.md
+          echo "" >> release_notes.md
+          echo "**Version:** $NEW_TAG" >> release_notes.md
+          echo "**Type:** ${{ needs.create-version-and-tag.outputs.bump_type }} release" >> release_notes.md
+          echo "" >> release_notes.md
+
+          echo "## 📝 Changes" >> release_notes.md
+          echo "" >> release_notes.md
+
+          if [ -n "$PREVIOUS_TAG" ]; then
+            git log $PREVIOUS_TAG..HEAD --pretty=format:"- %s (%h)" >> release_notes.md
+          else
+            git log --pretty=format:"- %s (%h)" >> release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "## 🔥 Deployed to Firebase Hosting" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "This version has been automatically deployed to Firebase Hosting." >> release_notes.md
+          echo "" >> release_notes.md
+
+          echo "## 📦 Installation" >> release_notes.md
+          echo "" >> release_notes.md
+          echo '```bash' >> release_notes.md
+          echo "# Clone the repository" >> release_notes.md
+          echo "git clone https://github.com/${{ github.repository }}.git" >> release_notes.md
+          echo "cd firebase-react-template" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Checkout this version" >> release_notes.md
+          echo "git checkout $NEW_TAG" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Install dependencies" >> release_notes.md
+          echo "npm install" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "# Start development" >> release_notes.md
+          echo "npm run dev" >> release_notes.md
+          echo '```' >> release_notes.md
+
+          echo "" >> release_notes.md
+          echo "## 📥 Downloads" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "- **Source Code**: Complete template with all source files" >> release_notes.md
+          echo "- **Production Build**: Pre-built distribution files ready for deployment" >> release_notes.md
+          echo "- **Checksums**: SHA256 checksums for verification" >> release_notes.md
+
+          cat release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create-version-and-tag.outputs.new_version }}
+          name: Release ${{ needs.create-version-and-tag.outputs.new_version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: |
+            release-assets/*.tar.gz
+            release-assets/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deployment Summary
+        run: |
+          echo "✅ CI/CD Pipeline Complete!"
+          echo "📌 Version: ${{ needs.create-version-and-tag.outputs.new_version }}"
+          echo "🏷️  Tag created and pushed"
+          echo "🚀 Deployed to Firebase Hosting"
+          echo "📦 GitHub Release published with assets"
